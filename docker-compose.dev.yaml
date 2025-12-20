@@ -1,0 +1,67 @@
+version: "3.8"
+
+x-healthcheck-postgres-template: &postgreshealthcheck
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
+
+x-healthcheck-redis-template: &redishealthcheck
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 30s
+    timeout: 30s
+    retries: 3
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: postgres-dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - image-analyser-network
+    restart: always
+    <<: *postgreshealthcheck
+  
+  postgres-test:
+    image: postgres:17
+    container_name: postgres-test
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+      POSTGRES_DB: test_analyser_db
+    networks:
+      - image-analyser-network
+    <<: *postgreshealthcheck
+
+  redis:
+    image: redis:alpine3.20
+    container_name: redis-server
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks:
+      - image-analyser-network
+    command: ["sh", "-c", "redis-server --bind 0.0.0.0 --requirepass $REDIS_PASSWORD"]
+    <<: *redishealthcheck
+
+networks:
+  image-analyser-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
