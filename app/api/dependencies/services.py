@@ -28,17 +28,6 @@ from app.middleware.logging import set_user_email
 from app.utils.oauth2 import verify_access_token
 
 
-# -------------------------
-# Database Connection
-# -------------------------
-async def get_db():
-    """
-    FastAPI dependency to get a database session.
-    """
-    async with db_manager.session_scope() as session:
-        print("session", id(session), "loop", id(asyncio.get_running_loop()))
-        yield session
-
 
 # -------------------------
 # Repository Factories
@@ -69,42 +58,6 @@ def get_report_repo() -> ReportRepository:
 def get_camera_repo() -> CameraRepository:
     """Provide camera repository instance."""
     return CameraRepository()
-
-
-# -------------------------
-# Get Current User
-# -------------------------
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    user_repo: UserRepository = Depends(get_user_repo)
-) -> UserOutSchema:
-    """Get current user from an HTTP-only cookie."""
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    token = request.cookies.get("access_token")
-    if not token:
-        raise credentials_exception
-    try:
-        token_data = verify_access_token(token, credentials_exception)
-        user_id = token_data.id
-
-        # Fetch the user from the repository
-        user = await user_repo.get_by_id(db, int(user_id))
-        if not user:
-            raise credentials_exception
-
-        request.state.user = user.id
-        set_user_email(user.email, request)
-
-        return user
-    except JWTError as exc:
-        raise credentials_exception from exc
 
 
 # -------------------------
