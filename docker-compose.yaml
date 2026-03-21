@@ -36,12 +36,10 @@ x-healthcheck-nginx: &nginxhealthcheck
     retries: 3
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend
-    hostname: backend
+  api:
+    build: .
+    container_name: api
+    hostname: api
     expose:
       - "8000"
     depends_on:
@@ -54,33 +52,10 @@ services:
     volumes:
       - ./data:/app/data
     networks:
-      - assistant-cloud-network
+      - template-network
     command: ["./start.sh"]
     <<: *backendhealthcheck
 
-  workers:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: workers
-    hostname: workers
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - ./data:/app/data
-    networks:
-      - assistant-cloud-network
-    restart: unless-stopped
-    command: ["python", "-m", "workers.scheduler"]
-    <<: *workershealthcheck
-    
   postgres:
     image: postgres:17
     container_name: assistant-db
@@ -94,7 +69,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     networks:
-      - assistant-cloud-network
+      - template-network
     restart: always
     <<: *postgreshealthcheck
 
@@ -109,29 +84,13 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     networks:
-      - assistant-cloud-network
+      - template-network
     command: ["sh", "-c", "redis-server --bind 0.0.0.0 --requirepass $REDIS_PASSWORD"]
     <<: *redishealthcheck
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: nginx
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/lib/letsencrypt:/var/lib/letsencrypt:ro
-    ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - assistant-cloud-network
   
 networks:
-  assistant-cloud-network:
+  template-network:
     driver: bridge
 
 volumes:
